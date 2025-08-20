@@ -1,39 +1,58 @@
 #include <Wire.h>
 #include <VL53L0X.h>
 
-VL53L0X sensor;
+VL53L0X sensor1;
+VL53L0X sensor2;
+
+#define XSHUT1 4
+#define XSHUT2 5
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin(18, 19); // or your chosen pins
+  Wire.begin(18, 19); // SDA, SCL
 
-  sensor.setTimeout(500);
-  if (!sensor.init()) {
-    Serial.println("Failed to detect and initialize sensor!");
+  pinMode(XSHUT1, OUTPUT);
+  pinMode(XSHUT2, OUTPUT);
+
+  // Keep both sensors off
+  digitalWrite(XSHUT1, LOW);
+  digitalWrite(XSHUT2, LOW);
+  delay(10);
+
+  // Init sensor 1
+  digitalWrite(XSHUT1, HIGH);
+  delay(10);
+  if (!sensor1.init()) {
+    Serial.println("Failed to init sensor 1");
     while (1);
   }
+  sensor1.setAddress(0x30); // New address
+  Serial.println("Sensor 1 at 0x30");
 
-  // Optional: better short-range stability
-  sensor.setSignalRateLimit(0.1);            // Lower limit = better close range accuracy
-  sensor.setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
-  sensor.setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+  // Init sensor 2
+  digitalWrite(XSHUT2, HIGH);
+  delay(10);
+  if (!sensor2.init()) {
+    Serial.println("Failed to init sensor 2");
+    while (1);
+  }
+  sensor2.setAddress(0x31); // New address
+  Serial.println("Sensor 2 at 0x31");
 
-  // Increase timing budget for accuracy (default = 33 ms)
-  sensor.setMeasurementTimingBudget(50000);  // 50 ms
-   sensor.setSignalRateLimit(.25);
-   //sensor.setVcselPulsePeriod(VL53L0X::VcselPeriodPreRange, 18);
-//sensor.setVcselPulsePeriod(VL53L0X::VcselPeriodFinalRange, 14);
+  // Optional tuning
+  sensor1.setMeasurementTimingBudget(50000);
+  sensor2.setMeasurementTimingBudget(50000);
 }
 
 void loop() {
-  uint16_t distance = sensor.readRangeSingleMillimeters();
+  uint16_t dist1 = sensor1.readRangeSingleMillimeters();
+  uint16_t dist2 = sensor2.readRangeSingleMillimeters();
 
-  if (sensor.timeoutOccurred()) {
-    Serial.print(" TIMEOUT");
-  } else {
-    Serial.print("Distance (mm): ");
-    Serial.println(distance);
-  }
+  Serial.print("S1: ");
+  Serial.print(dist1);
+  Serial.print(" mm\tS2: ");
+  Serial.print(dist2);
+  Serial.println(" mm");
 
-  delay(100);
+  delay(200);
 }
