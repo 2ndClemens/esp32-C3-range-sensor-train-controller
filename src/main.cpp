@@ -4,11 +4,22 @@
 VL53L0X sensor1;
 VL53L0X sensor2;
 
+#define mot1 10
+#define mot2 8
+
 #define XSHUT1 4
 #define XSHUT2 5
 
 void setup() {
   Serial.begin(115200);
+
+  pinMode(mot1, OUTPUT);
+  pinMode(mot2, OUTPUT);
+
+  // Keep both sensors off
+  digitalWrite(mot1, HIGH);
+  digitalWrite(mot2, LOW);
+
   Wire.begin(18, 19); // SDA, SCL
 
   pinMode(XSHUT1, OUTPUT);
@@ -55,4 +66,17 @@ void loop() {
   Serial.println(" mm");
 
   delay(200);
+
+  if(dist2 < 60 ){
+      digitalWrite(mot1, HIGH);
+  digitalWrite(mot2, LOW);
+  Serial.println("fw");
+  }
+    if(dist1 < 60 ){
+      digitalWrite(mot2, HIGH);
+  digitalWrite(mot1, LOW);
+  Serial.println("bw");
+  }
 }
+
+
