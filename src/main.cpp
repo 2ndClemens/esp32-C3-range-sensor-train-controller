@@ -1,5 +1,20 @@
 #include <Wire.h>
 #include <VL53L0X.h>
+#include <Arduino.h>
+#include "Freenove_WS2812_Lib_for_ESP32.h"
+
+typedef uint16_t u16;
+typedef uint8_t u8;
+
+#define LEDS_COUNT  1
+#define LEDS_PIN	  2
+#define CHANNEL		  0
+
+Freenove_ESP32_WS2812 strip = Freenove_ESP32_WS2812(LEDS_COUNT, LEDS_PIN, CHANNEL, TYPE_GRB);
+
+u8 m_color[5][3] = {
+  {255, 0, 0}, {0, 255, 0}, {0, 0, 255}, {255, 255, 255}, {0, 0, 0}
+};
 
 VL53L0X sensor1;
 VL53L0X sensor2;
@@ -12,6 +27,12 @@ VL53L0X sensor2;
 
 void setup() {
   Serial.begin(115200);
+
+    strip.begin();
+  strip.setBrightness(10);
+
+  strip.setLedColorData(0, m_color[0][0], m_color[0][1], m_color[0][2]);
+      strip.show();
 
   pinMode(mot1, OUTPUT);
   pinMode(mot2, OUTPUT);
@@ -65,17 +86,21 @@ void loop() {
   Serial.print(dist2);
   Serial.println(" mm");
 
-  delay(200);
+  delay(60);
 
-  if(dist2 < 60 ){
+  if(dist2 < 100 ){
       digitalWrite(mot1, HIGH);
   digitalWrite(mot2, LOW);
   Serial.println("fw");
+    strip.setLedColorData(0, m_color[1][0], m_color[1][1], m_color[1][2]);
+      strip.show();
   }
-    if(dist1 < 60 ){
+    if(dist1 < 100 ){
       digitalWrite(mot2, HIGH);
   digitalWrite(mot1, LOW);
   Serial.println("bw");
+    strip.setLedColorData(0, m_color[2][0], m_color[2][1], m_color[2][2]);
+      strip.show();
   }
 }
 
