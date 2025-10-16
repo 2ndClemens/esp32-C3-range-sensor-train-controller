@@ -1,6 +1,5 @@
 #include <Wire.h>
-#include <VL53L0X.h>
-#include <Arduino.h>
+#include <VL53L0X.h>#include <Arduino.h>
 #include "Freenove_WS2812_Lib_for_ESP32.h"
 
 typedef uint16_t u16;
@@ -25,22 +24,35 @@ VL53L0X sensor2;
 #define XSHUT1 4
 #define XSHUT2 5
 
+// PWM settings
+#define PWM_CHANNEL1 0
+#define PWM_CHANNEL2 1
+#define PWM_FREQ 5000
+#define PWM_RES 8    // 8-bit: 0–255
+
+int currentSpeed = 0;
+int maxSpeed = 160;     // adjust for top speed (0–255)
+int accelStep = 5;      // speed increment
+int accelDelay = 30;    // ms between speed steps
+int dwellTime = 5000;   // stop time in ms
+
 void setup() {
   Serial.begin(115200);
 
-    strip.begin();
+      strip.begin();
   strip.setBrightness(10);
 
   strip.setLedColorData(0, m_color[0][0], m_color[0][1], m_color[0][2]);
       strip.show();
 
-  pinMode(mot1, OUTPUT);
-  pinMode(mot2, OUTPUT);
+  // Attach PWM channels
+  ledcSetup(PWM_CHANNEL1, PWM_FREQ, PWM_RES);
+  ledcSetup(PWM_CHANNEL2, PWM_FREQ, PWM_RES);
 
-  // Keep both sensors off
-  digitalWrite(mot1, HIGH);
-  digitalWrite(mot2, LOW);
+  ledcAttachPin(mot1, PWM_CHANNEL1);
+  ledcAttachPin(mot2, PWM_CHANNEL2);
 
+  // Sensors
   Wire.begin(18, 19); // SDA, SCL
 
   pinMode(XSHUT1, OUTPUT);
@@ -58,7 +70,7 @@ void setup() {
     Serial.println("Failed to init sensor 1");
     while (1);
   }
-  sensor1.setAddress(0x30); // New address
+  sensor1.setAddress(0x30);
   Serial.println("Sensor 1 at 0x30");
 
   // Init sensor 2
@@ -68,12 +80,34 @@ void setup() {
     Serial.println("Failed to init sensor 2");
     while (1);
   }
-  sensor2.setAddress(0x31); // New address
+  sensor2.setAddress(0x31);
   Serial.println("Sensor 2 at 0x31");
 
-  // Optional tuning
   sensor1.setMeasurementTimingBudget(50000);
   sensor2.setMeasurementTimingBudget(50000);
+}
+
+void setMotor(int dir, int speed) {
+  if (dir == 1) { // forward
+    ledcWrite(PWM_CHANNEL1, speed);
+    ledcWrite(PWM_CHANNEL2, 0);
+  } else if (dir == -1) { // backward
+    ledcWrite(PWM_CHANNEL1, 0);
+    ledcWrite(PWM_CHANNEL2, speed);
+  } else { // stop
+    ledcWrite(PWM_CHANNEL1, 0);
+    ledcWrite(PWM_CHANNEL2, 0);
+  }
+}
+
+void rampMotor(int dir, int targetSpeed) {
+  while (currentSpeed != targetSpeed) {
+    if (currentSpeed < targetSpeed) currentSpeed += accelStep;
+    else if (currentSpeed > targetSpeed) currentSpeed -= accelStep;
+
+    setMotor(dir, abs(currentSpeed));
+    delay(accelDelay);
+  }
 }
 
 void loop() {
@@ -88,20 +122,25 @@ void loop() {
 
   delay(60);
 
-  if(dist2 < 100 ){
-      digitalWrite(mot1, HIGH);
-  digitalWrite(mot2, LOW);
-  Serial.println("fw");
-    strip.setLedColorData(0, m_color[1][0], m_color[1][1], m_color[1][2]);
+  // If close to sensor 2 → stop, wait, then reverse
+  if (dist2 < 100) {
+    rampMotor(1, 0);         // decelerate to stop
+    Serial.println("Arrived at Station B - waiting...");
+    delay(dwellTime);        // stand still for passengers
+    rampMotor(-1, maxSpeed); // accelerate backward
+    Serial.println("Departing Station B");
+     strip.setLedColorData(0, m_color[1][0], m_color[1][1], m_color[1][2]);
       strip.show();
   }
-    if(dist1 < 100 ){
-      digitalWrite(mot2, HIGH);
-  digitalWrite(mot1, LOW);
-  Serial.println("bw");
+
+  // If close to sensor 1 → stop, wait, then forward
+  if (dist1 < 100) {
+    rampMotor(-1, 0);        // decelerate to stop
+    Serial.println("Arrived at Station A - waiting...");
+    delay(dwellTime);        // stand still for passengers
+    rampMotor(1, maxSpeed);  // accelerate forward
+    Serial.println("Departing Station A");
     strip.setLedColorData(0, m_color[2][0], m_color[2][1], m_color[2][2]);
       strip.show();
   }
 }
-
-
