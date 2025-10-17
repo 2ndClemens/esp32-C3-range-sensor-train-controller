@@ -7,8 +7,8 @@ typedef uint16_t u16;
 typedef uint8_t u8;
 
 #define LEDS_COUNT  1
-#define LEDS_PIN	  2
-#define CHANNEL		  0
+#define LEDS_PIN    2
+#define CHANNEL     0
 
 Freenove_ESP32_WS2812 strip = Freenove_ESP32_WS2812(LEDS_COUNT, LEDS_PIN, CHANNEL, TYPE_GRB);
 
@@ -19,34 +19,66 @@ u8 m_color[5][3] = {
 VL53L0X sensor1;
 VL53L0X sensor2;
 
-#define mot1 10
-#define mot2 8
+// Motor pins
+#define mot1 5
+#define mot2 4
 
-#define XSHUT1 4
-#define XSHUT2 5
+// PWM channels for motor control
+#define PWM_CH1 1
+#define PWM_CH2 2
+#define PWM_FREQ 5000
+#define PWM_RES 8 // 8-bit resolution (0–255)
+#define MOTOR_SPEED 150 // out of 255 → ~60% speed
 
+#define XSHUT1 8
+#define XSHUT2 10
+
+// Distance thresholds (mm)
+const uint16_t TRIGGER_DIST = 50; // when to flip direction
+const uint16_t EXIT_DIST = 80;    // hysteresis: must move past this before allowing another flip
+
+// direction state: 1 = forward (towards sensor2), -1 = backward (towards sensor1)
+int8_t direction = 1;
+bool canSwitch = true;
+
+void applyMotor(int8_t dir) {
+  // dir: 1 = forward -> mot1 = PWM, mot2 = 0
+  //     -1 = backward -> mot2 = PWM, mot1 = 0
+  if (dir > 0) {
+    ledcWrite(PWM_CH1, MOTOR_SPEED);
+    ledcWrite(PWM_CH2, 0);
+  } else if (dir < 0) {
+    ledcWrite(PWM_CH1, 0);
+    ledcWrite(PWM_CH2, MOTOR_SPEED);
+  } else {
+    ledcWrite(PWM_CH1, 0);
+    ledcWrite(PWM_CH2, 0);
+  }
+}
 void setup() {
   Serial.begin(115200);
 
-    strip.begin();
+  strip.begin();
   strip.setBrightness(10);
-
   strip.setLedColorData(0, m_color[0][0], m_color[0][1], m_color[0][2]);
-      strip.show();
+  strip.show();
 
-  pinMode(mot1, OUTPUT);
-  pinMode(mot2, OUTPUT);
+  // Set up PWM for both motor pins
+  ledcSetup(PWM_CH1, PWM_FREQ, PWM_RES);
+  ledcSetup(PWM_CH2, PWM_FREQ, PWM_RES);
+  ledcAttachPin(mot1, PWM_CH1);
+  ledcAttachPin(mot2, PWM_CH2);
 
-  // Keep both sensors off
-  digitalWrite(mot1, HIGH);
-  digitalWrite(mot2, LOW);
+  // Initially stop
+  ledcWrite(PWM_CH1, 0);
+  ledcWrite(PWM_CH2, 0);
 
   Wire.begin(18, 19); // SDA, SCL
 
   pinMode(XSHUT1, OUTPUT);
   pinMode(XSHUT2, OUTPUT);
 
-  // Keep both sensors off
+  // Keep both sensors off initially
   digitalWrite(XSHUT1, LOW);
   digitalWrite(XSHUT2, LOW);
   delay(10);
@@ -71,9 +103,11 @@ void setup() {
   sensor2.setAddress(0x31); // New address
   Serial.println("Sensor 2 at 0x31");
 
-  // Optional tuning
   sensor1.setMeasurementTimingBudget(50000);
   sensor2.setMeasurementTimingBudget(50000);
+
+  // start moving in initial direction
+  applyMotor(direction);
 }
 
 void loop() {
@@ -84,24 +118,45 @@ void loop() {
   Serial.print(dist1);
   Serial.print(" mm\tS2: ");
   Serial.print(dist2);
-  Serial.println(" mm");
+  Serial.print(" mm\tDir: ");
+  Serial.println(direction > 0 ? "FWD" : "BWD");
+
+  // If moving forward (towards sensor2)
+  if (direction > 0) {
+    applyMotor(1); // keep driving forward
+    // if reached sensor2 and switching allowed -> reverse
+    if (dist2 < TRIGGER_DIST && canSwitch) {
+      direction = -1;
+      canSwitch = false;
+      Serial.println("Reached sensor2: reversing -> BACKWARD");
+      strip.setLedColorData(0, m_color[2][0], m_color[2][1], m_color[2][2]); // blue for backward
+      strip.show();
+      delay(100); // small pause to ensure motor direction change registers
+    }
+  }
+  // If moving backward (towards sensor1)
+  else if (direction < 0) {
+    applyMotor(-1); // keep driving backward
+    // if reached sensor1 and switching allowed -> forward
+    if (dist1 < TRIGGER_DIST && canSwitch) {
+      direction = 1;
+      canSwitch = false;
+      Serial.println("Reached sensor1: reversing -> FORWARD");
+      strip.setLedColorData(0, m_color[1][0], m_color[1][1], m_color[1][2]); // green for forward
+      strip.show();
+      delay(100);
+    }
+  }
+
+  // Re-enable switching only after both sensors read beyond EXIT_DIST (train has left the trigger zone)
+  if (!canSwitch) {
+    if (dist1 > EXIT_DIST && dist2 > EXIT_DIST) {
+      canSwitch = true;
+      Serial.println("Switch re-enabled (train left both trigger zones)");
+    }
+  }
 
   delay(60);
-
-  if(dist2 < 100 ){
-      digitalWrite(mot1, HIGH);
-  digitalWrite(mot2, LOW);
-  Serial.println("fw");
-    strip.setLedColorData(0, m_color[1][0], m_color[1][1], m_color[1][2]);
-      strip.show();
-  }
-    if(dist1 < 100 ){
-      digitalWrite(mot2, HIGH);
-  digitalWrite(mot1, LOW);
-  Serial.println("bw");
-    strip.setLedColorData(0, m_color[2][0], m_color[2][1], m_color[2][2]);
-      strip.show();
-  }
 }
 
 
