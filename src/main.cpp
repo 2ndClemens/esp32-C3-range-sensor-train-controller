@@ -148,7 +148,7 @@ void loop()
     speed = dist2prev - dist2;
     if (speed > 10)
     {
-      MOTOR_SPEED -= (40 * speed)/dist2 ;
+      MOTOR_SPEED -= (60 * speed)/dist2 ;
       if (MOTOR_SPEED < 0)
       {
         MOTOR_SPEED = 0;
@@ -161,7 +161,7 @@ void loop()
     speed = dist1prev - dist1;
     if (speed > 10)
     {
-      MOTOR_SPEED -= (40 * speed)/dist1;
+      MOTOR_SPEED -= (60 * speed)/dist1;
       if (MOTOR_SPEED < 0)
       {
         MOTOR_SPEED = 0;
