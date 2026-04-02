@@ -186,7 +186,8 @@ void loop()
         Serial.println("Reached sensor2: reversing -> BACKWARD");
         strip.setLedColorData(0, m_color[2][0], m_color[2][1], m_color[2][2]); // blue for backward
         strip.show();
-        // delay(100); // small pause to ensure motor direction change registers
+        applyMotor(1); // keep driving forward
+         delay(1000); // small pause to ensure motor direction change registers
       }
     }
   }
@@ -206,7 +207,8 @@ void loop()
         Serial.println("Reached sensor1: reversing -> FORWARD");
         strip.setLedColorData(0, m_color[1][0], m_color[1][1], m_color[1][2]); // green for forward
         strip.show();
-        // delay(100);
+        applyMotor(-1); // keep driving backward
+         delay(1000);
       }
     }
   }
