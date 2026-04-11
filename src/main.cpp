@@ -2,6 +2,9 @@
 #include <VL53L0X.h>
 #include <Arduino.h>
 #include "Freenove_WS2812_Lib_for_ESP32.h"
+#include <GyverOLED.h>
+
+GyverOLED<SSH1106_128x64> oled;
 
 typedef uint16_t u16;
 typedef uint8_t u8;
@@ -34,7 +37,7 @@ VL53L0X sensor2;
 int TARGET_MOTOR_SPEED = 235;
 int MOTOR_SPEED = 0; // out of 255 → ~60% speed
 // Distance thresholds (mm)
-const uint16_t SPEED_DIST = 400;  // when to decelerate
+const uint16_t SPEED_DIST = 90;  // when to decelerate
 const uint16_t TRIGGER_DIST = 50; // when to flip direction
 const uint16_t EXIT_DIST = 80;    // hysteresis: must move past this before allowing another flip
 
@@ -69,6 +72,23 @@ void applyMotor(int8_t dir)
     ledcWrite(PWM_CH2, 0);
   }
 }
+
+void printScale(byte x) {
+  oled.clear();
+  oled.setScale(x);
+    oled.setCursor(0, 0);
+    oled.print(dist1);
+
+        oled.setCursor(0, 2);
+    oled.print(dist2);
+
+            oled.setCursor(0, 5);
+    oled.print(speed);
+  
+  oled.update();
+}
+
+
 void setup()
 {
   Serial.begin(115200);
@@ -90,6 +110,8 @@ void setup()
 
   Wire.begin(18, 19); // SDA, SCL
   // Wire.setClock(10000);
+
+    oled.init();  
 
   pinMode(XSHUT1, OUTPUT);
   pinMode(XSHUT2, OUTPUT);
@@ -123,8 +145,8 @@ void setup()
   sensor2.setAddress(0x31); // New address
   Serial.println("Sensor 2 at 0x31");
 
-  sensor1.setMeasurementTimingBudget(50000);
-  sensor2.setMeasurementTimingBudget(50000);
+  sensor1.setMeasurementTimingBudget(20000);
+  sensor2.setMeasurementTimingBudget(20000);
 
   // start moving in initial direction
   applyMotor(direction);
@@ -135,6 +157,8 @@ void loop()
 
   dist1 = sensor1.readRangeSingleMillimeters();
   dist2 = sensor2.readRangeSingleMillimeters();
+
+
 
   Serial.print("\tS1: ");
   Serial.print(dist1);
@@ -148,7 +172,7 @@ void loop()
     speed = dist2prev - dist2;
     if (speed > 10)
     {
-      MOTOR_SPEED -= (60 * speed)/dist2 ;
+      MOTOR_SPEED -= (300 * speed)/dist2 ;
       if (MOTOR_SPEED < 0)
       {
         MOTOR_SPEED = 0;
@@ -161,13 +185,15 @@ void loop()
     speed = dist1prev - dist1;
     if (speed > 10)
     {
-      MOTOR_SPEED -= (60 * speed)/dist1;
+      MOTOR_SPEED -= (300 * speed)/dist1;
       if (MOTOR_SPEED < 0)
       {
         MOTOR_SPEED = 0;
       }
     }
   }
+
+  printScale(1);
 
   // If moving forward (towards sensor2)
   if (direction > 0)
@@ -235,5 +261,5 @@ void loop()
   dist1prev = dist1;
   dist2prev = dist2;
 
-  delay(10);
+  //delay(10);
 }
